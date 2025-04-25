@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Budget Dashboard</title>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- TailwindCSS -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 p-4">
+  <div class="max-w-md mx-auto bg-white p-6 rounded-lg shadow">
+    <h1 class="text-2xl font-bold mb-4" style="text-align: center">Monthly Budget Tracker</h1>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+      <div class="bg-blue-50 p-4 rounded-lg text-center">
+        <p class="text-sm text-gray-500 uppercase">Budget</p>
+        <p class="text-xl font-bold">${{ budget|round(2) }}</p>
+      </div>
+      <div class="bg-yellow-50 p-4 rounded-lg text-center">
+        <p class="text-sm text-gray-500 uppercase">Rewards</p>
+        <p class="text-xl font-bold">${{ total_rewards }}</p>
+      </div>
+      <div class="bg-red-50 p-4 rounded-lg text-center">
+        <p class="text-sm text-gray-500 uppercase">Spent</p>
+        <p class="text-xl font-bold">${{ spent|round(2) }}</p>
+      </div>
+      <div class="bg-green-50 p-4 rounded-lg text-center">
+        <p class="text-sm text-gray-500 uppercase">Remaining</p>
+        <p class="text-xl font-bold">${{ remaining|round(2) }}</p>
+      </div>
+    </div>
+    <form method="POST" class="space-y-4 mb-6">
+      <div>
+        <label class="block text-sm font-medium">Amount</label>
+        <input type="number" step="0.01" name="amount" required class="w-full border rounded px-2 py-1">
+      </div>
+      <div>
+        <label class="block text-sm font-medium">Category</label>
+        <select name="category" class="w-full border rounded px-2 py-1">
+          {% for cat in ["Other", "Rotating", "Dining", "Groceries", "Gas", "Entertainment", "Flights", "Hotels", "Rentals"] %}
+          <option value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium">Method</label>
+        <select name="method" class="w-full border rounded px-2 py-1">
+          {% for m in ["Cash", "Discover It", "Savor", "Venture X", "Ritz-Carlton"] %}
+          <option value="{{ m }}">{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium">Note</label>
+        <input type="text" name="note" class="w-full border rounded px-2 py-1" placeholder="Optional note">
+      </div>
+      <div class="flex items-center space-x-4">
+        <label class="flex items-center">
+          <input type="checkbox" name="is_input" class="mr-2">
+          Input
+        </label>
+        <label class="flex items-center">
+          <input type="checkbox" name="is_business" class="mr-2">
+          Business
+        </label>
+      </div>
+      <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Add Transaction</button>
+    </form>
+
+    <div class="grid grid-cols-1 gap-6">
+      <canvas id="categoryChart"></canvas>
+      <canvas id="methodChart"></canvas>
+    </div>
+
+    <h2 class="text-xl font-semibold mt-6 mb-2">Transactions</h2>
+    <div class="overflow-x-auto">
+      <table class="min-w-full bg-white">
+        <thead>
+          <tr>
+            <th class="px-4 py-2">Date</th>
+            <th class="px-4 py-2">Amount</th>
+            <th class="px-4 py-2">Category</th>
+            <th class="px-4 py-2">Method</th>
+            <th class="px-4 py-2">Reward Rate</th>
+            <th class="px-4 py-2">Rewards</th>
+            <th class="px-4 py-2">Input</th>
+            <th class="px-4 py-2">Business</th>
+            <th class="px-4 py-2">Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tx in transactions %}
+          <tr class="text-center">
+            <td class="border px-4 py-2">{{ tx['date'] }}</td>
+            <td class="border px-4 py-2">{{ tx['amount'] }}</td>
+            <td class="border px-4 py-2">{{ tx['category'] }}</td>
+            <td class="border px-4 py-2">{{ tx['method'] }}</td>
+            <td class="border px-4 py-2">{{ tx['reward_rate'] }}%</td>
+            <td class="border px-4 py-2">${{ tx['reward_amount'] }}</td>
+            <td class="border px-4 py-2">{{ 'Yes' if tx['is_input'] else 'No' }}</td>
+            <td class="border px-4 py-2">{{ 'Yes' if tx['is_business'] else 'No' }}</td>
+            <td class="border px-4 py-2">{{ tx['note'] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const transactions = {{ transactions|tojson }};
+    const catData = {};
+    transactions.forEach(tx => {
+      if (!tx.is_input && !tx.is_business) {
+        catData[tx.category] = (catData[tx.category] || 0) + tx.amount;
+      }
+    });
+    new Chart(document.getElementById('categoryChart').getContext('2d'), {
+      type: 'pie',
+      data: {
+        labels: Object.keys(catData),
+        datasets: [{ data: Object.values(catData) }]
+      }
+    });
+    const methodData = {};
+    transactions.forEach(tx => {
+      if (!tx.is_input && !tx.is_business) {
+        methodData[tx.method] = (methodData[tx.method] || 0) + tx.amount;
+      }
+    });
+    new Chart(document.getElementById('methodChart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: Object.keys(methodData),
+        datasets: [{ label: 'Spend by Method', data: Object.values(methodData) }]
+      },
+      options: { scales: { y: { beginAtZero: true } } }
+    });
+  </script>
+</body>
+</html>
