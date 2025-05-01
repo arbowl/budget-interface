@@ -12,7 +12,7 @@ from assets.cards import cards
 
 app = Flask(__name__)
 DATABASE = "budget.db"
-MONTHLY_SPENDING_BUDGET = 2497
+MONTHLY_SPENDING_BUDGET = 2415
 
 
 def get_db_connection() -> Connection:
@@ -83,11 +83,25 @@ def index() -> Response | str:
     if request.method == "POST":
         return post_transaction()
     conn = get_db_connection()
-    month_str = datetime.now().strftime("%Y-%m")
+    selected_month = request.args.get(
+        "month",
+        datetime.now().strftime("%Y-%m")
+    )
+    month_rows = conn.execute(
+        "SELECT DISTINCT strftime('%Y-%m', date) AS month "
+        "FROM transactions "
+        "ORDER BY month DESC"
+    ).fetchall()
+    avail_months = [row["month"] for row in month_rows]
+    avail_months = [
+       {"key": m, "label": datetime.strptime(m, "%Y-%m").strftime("%B %Y")}
+       for m in avail_months
+    ]
     cur = conn.execute(
-        'SELECT * FROM transactions WHERE strftime("%Y-%m", date)=? ORDER BY date '
-        "DESC",
-        (month_str,),
+        "SELECT * FROM transactions "
+        "WHERE strftime('%Y-%m', date)=? "
+        "ORDER BY date DESC",
+        (selected_month,)
     )
     rows = cur.fetchall()
     transactions = [dict(tx) for tx in rows]
@@ -108,6 +122,8 @@ def index() -> Response | str:
         budget=MONTHLY_SPENDING_BUDGET,
         spent=net_spend,
         total_rewards=round(total_rewards, 2),
+        avail_months=avail_months,
+        selected_month=selected_month
     )
 
 
